@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision import datasets, transforms
+from torchvision import datasets, transforms, models
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -37,33 +37,45 @@ class ConvNet(nn.Module):
 def main():
 
     # Load the data.
-    train_loader, test_loader = load_data()
+    train_loader, test_loader = load_data(True)
 
     # Split the examples to training and validation sets 80:20.
     train_loader, validation_loader = split_data(train_loader.dataset)
 
     # Initialize models.
-    conv_net = ConvNet()
+    model_conv = ConvNet()
+    model_resnet = create_resnet_model()
 
     # Initialize hyper-parameters.
     lr = 0.05
     epochs = 10
 
     # Setting the optimizers.
-    optimizer_conv = optim.SGD(conv_net.parameters(), lr=lr)
+    optimizer_conv = optim.SGD(model_conv.parameters(), lr=lr)
+    optimizer_resnet = optim.SGD(model_resnet.fc.parameters(), lr=0.001, momentum=0.9)
 
-    # Train and plot convolution network model.
-    train_and_plot(conv_net, optimizer_conv, epochs, train_loader, validation_loader, test_loader)
+    # Train and plot the convolution network model.
+    # train_and_plot(model_conv, optimizer_conv, epochs, train_loader, validation_loader, test_loader)
+
+    # Train and plot the ResNet model.
+    train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
 
 
-def load_data():
+def load_data(resize_data=False):
     """
     Loads the training and testing data.
+    :param resize_data: boolean, sould the data be resized
     :return: train_loader, test_loader
     """
-    t = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    if resize_data:
+        t = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    else:
+        t = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
     train_loader = torch.utils.data.DataLoader(
         datasets.CIFAR10('./data', train=True, download=True,
@@ -103,6 +115,22 @@ def split_data(data_set):
                     batch_size=64, sampler=validation_sampler)
 
     return train_loader, validation_loader
+
+
+def create_resnet_model():
+    """
+    Creates a ResNet model with a custom fully connected layer.
+    :return: model
+    """
+    model_resnet = models.resnet18(pretrained=True)
+    for param in model_resnet.parameters():
+        param.requires_grad = False
+
+    # Parameters of newly constructed modules have requires_grad=True by default
+    num_ftrs = model_resnet.fc.in_features
+    model_resnet.fc = nn.Linear(num_ftrs, 10)
+
+    return model_resnet
 
 
 def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, test_loader):
