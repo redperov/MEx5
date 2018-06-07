@@ -18,9 +18,11 @@ class ConvNet(nn.Module):
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.mp1 = nn.MaxPool2d(2)
         self.mp2 = nn.MaxPool2d(2)
-        self.fc1 = nn.Linear(20 * 5 * 5, 80)
-        self.fc2 = nn.Linear(80, 50)
+        self.fc1 = nn.Linear(20 * 5 * 5, 100)
+        self.fc2 = nn.Linear(100, 50)
         self.fc3 = nn.Linear(50, 10)
+        self.bn1 = nn.BatchNorm1d(80)
+        self.bn2 = nn.BatchNorm1d(50)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -28,8 +30,8 @@ class ConvNet(nn.Module):
         x = F.relu(self.conv2(x))
         x = self.mp2(x)
         x = x.view(-1, 20 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
         return F.log_softmax(x, dim=1)
 
@@ -37,7 +39,7 @@ class ConvNet(nn.Module):
 def main():
 
     # Load the data.
-    train_loader, test_loader = load_data(True)
+    train_loader, test_loader = load_data(False)
 
     # Split the examples to training and validation sets 80:20.
     train_loader, validation_loader = split_data(train_loader.dataset)
@@ -55,10 +57,13 @@ def main():
     optimizer_resnet = optim.SGD(model_resnet.fc.parameters(), lr=0.001, momentum=0.9)
 
     # Train and plot the convolution network model.
-    # train_and_plot(model_conv, optimizer_conv, epochs, train_loader, validation_loader, test_loader)
+    train_and_plot(model_conv, optimizer_conv, epochs, train_loader, validation_loader, test_loader)
 
     # Train and plot the ResNet model.
-    train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
+    # train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
+
+    # Write the prediction of the best model to a file.
+    write_prediction(model_conv, test_loader)
 
 
 def load_data(resize_data=False):
