@@ -6,7 +6,8 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets, transforms, models
 import numpy as np
 from matplotlib import pyplot as plt
-
+from sklearn.metrics import confusion_matrix
+import itertools
 
 class ConvNet(nn.Module):
     """
@@ -21,7 +22,7 @@ class ConvNet(nn.Module):
         self.fc1 = nn.Linear(20 * 5 * 5, 100)
         self.fc2 = nn.Linear(100, 50)
         self.fc3 = nn.Linear(50, 10)
-        self.bn1 = nn.BatchNorm1d(80)
+        self.bn1 = nn.BatchNorm1d(100)
         self.bn2 = nn.BatchNorm1d(50)
 
     def forward(self, x):
@@ -33,7 +34,7 @@ class ConvNet(nn.Module):
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1)
+        return F.softmax(x, dim=1)
 
 
 def main():
@@ -50,7 +51,7 @@ def main():
 
     # Initialize hyper-parameters.
     lr = 0.05
-    epochs = 10
+    epochs = 1
 
     # Setting the optimizers.
     optimizer_conv = optim.SGD(model_conv.parameters(), lr=lr)
@@ -61,6 +62,9 @@ def main():
 
     # Train and plot the ResNet model.
     # train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
+
+    # Plot confusion matrix.
+    plot_confusion_matrix(model_conv, test_loader)
 
     # Write the prediction of the best model to a file.
     write_prediction(model_conv, test_loader)
@@ -171,6 +175,8 @@ def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, te
     # Plot average training and validation loss VS number of epochs
     plot_graph(epochs, train_loss_list, validation_loss_list)
 
+    plot_confusion_matrix(model, test_loader)
+
 
 def plot_graph(epochs, train_loss_list, validation_loss_list):
     """
@@ -186,6 +192,39 @@ def plot_graph(epochs, train_loss_list, validation_loss_list):
     plt.xlabel("Epochs")
     plt.ylabel("Average loss")
     plt.legend()
+    plt.show()
+
+
+def plot_confusion_matrix(model, test_loader):
+    model.eval()
+    test_loss = 0
+    y_true = []
+    y_pred = []
+    for data, target in test_loader:
+        output = model(data)
+        pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
+        y_true.append(target[0].item())
+        y_pred.append(pred[0].item())
+
+    matrix = confusion_matrix(y_true, y_pred)
+    classes = [i for i in range(10)]
+
+    plt.imshow(matrix, interpolation='nearest')
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    # fmt = '.2f' if normalize else 'd'
+    thresh = matrix.max() / 2.
+    for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
+        plt.text(j, i, format(matrix[i, j], "d"),
+                 horizontalalignment="center",
+                 color="white" if matrix[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
     plt.show()
 
 
