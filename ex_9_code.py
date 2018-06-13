@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets, transforms, models
 import numpy as np
@@ -9,17 +10,18 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 import itertools
 
+
 class ConvNet(nn.Module):
     """
     Convolutional neural network.
     """
     def __init__(self):
         super(ConvNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=2)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=2)
         self.mp1 = nn.MaxPool2d(2)
         self.mp2 = nn.MaxPool2d(2)
-        self.fc1 = nn.Linear(20 * 5 * 5, 100)
+        self.fc1 = nn.Linear(32 * 7 * 7, 100)
         self.fc2 = nn.Linear(100, 50)
         self.fc3 = nn.Linear(50, 10)
         self.bn1 = nn.BatchNorm1d(100)
@@ -30,7 +32,7 @@ class ConvNet(nn.Module):
         x = self.mp1(x)
         x = F.relu(self.conv2(x))
         x = self.mp2(x)
-        x = x.view(-1, 20 * 5 * 5)
+        x = x.view(-1, 32 * 7 * 7)
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
@@ -50,21 +52,19 @@ def main():
     model_resnet = create_resnet_model()
 
     # Initialize hyper-parameters.
-    lr = 0.05
-    epochs = 1
+    lr = 0.005
+    epochs = 10
 
     # Setting the optimizers.
-    optimizer_conv = optim.SGD(model_conv.parameters(), lr=lr)
+    optimizer_conv = optim.Adam(model_conv.parameters(), lr=lr)
     optimizer_resnet = optim.SGD(model_resnet.fc.parameters(), lr=0.001, momentum=0.9)
+    scheduler = StepLR(optimizer_conv, step_size=3, gamma=0.1)
 
     # Train and plot the convolution network model.
-    train_and_plot(model_conv, optimizer_conv, epochs, train_loader, validation_loader, test_loader)
+    train_and_plot(model_conv, optimizer_conv, epochs, train_loader, validation_loader, test_loader, scheduler)
 
     # Train and plot the ResNet model.
-    # train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
-
-    # Plot confusion matrix.
-    plot_confusion_matrix(model_conv, test_loader)
+    train_and_plot(model_resnet, optimizer_resnet, epochs, train_loader, validation_loader, test_loader)
 
     # Write the prediction of the best model to a file.
     write_prediction(model_conv, test_loader)
@@ -118,10 +118,10 @@ def split_data(data_set):
     validation_sampler = SubsetRandomSampler(validation_idx)
 
     train_loader = torch.utils.data.DataLoader(data_set,
-                    batch_size=64, sampler=train_sampler)
+                    batch_size=128, sampler=train_sampler)
 
     validation_loader = torch.utils.data.DataLoader(data_set,
-                    batch_size=64, sampler=validation_sampler)
+                    batch_size=128, sampler=validation_sampler)
 
     return train_loader, validation_loader
 
@@ -142,7 +142,7 @@ def create_resnet_model():
     return model_resnet
 
 
-def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, test_loader):
+def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, test_loader, scheduler=None):
     """
     Trains and plots the results of a given model.
     :param model: model
@@ -157,6 +157,9 @@ def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, te
     validation_loss_list = []
 
     for epoch in range(epochs):
+
+        if scheduler is not None:
+            scheduler.step()
 
         # Train the model.
         train(model, optimizer, train_loader)
@@ -175,6 +178,7 @@ def train_and_plot(model, optimizer, epochs, train_loader, validation_loader, te
     # Plot average training and validation loss VS number of epochs
     plot_graph(epochs, train_loss_list, validation_loss_list)
 
+    # Plot confusion matrix.
     plot_confusion_matrix(model, test_loader)
 
 
